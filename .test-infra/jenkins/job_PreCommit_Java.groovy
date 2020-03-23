@@ -40,7 +40,7 @@ builder.build {
     archiveJunit('**/build/test-results/**/*.xml')
     recordIssues {
       tools {
-        errorProne()
+//        errorProne()
         java()
         checkStyle {
           pattern('**/build/reports/checkstyle/*.xml')
