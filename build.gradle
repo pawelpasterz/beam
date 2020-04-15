@@ -349,29 +349,7 @@ if (project.hasProperty('javaLinkageArtifactIds')) {
     }
   }
 }
-
-if (project.hasProperty('runWithJava11')) {
-  allprojects {
-    plugins.withId('java') {
-
-      java {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
-      }
-
-      tasks.withType(JavaCompile) {
-        options.with {
-          fork = true
-          forkOptions.javaHome = java8Home as File
-        }
-      }
-
-      tasks.withType(Test) {
-        useJUnit()
-        executable = "${java11Home}/bin/java"
-      }
-    }
-  }
+if (project.hasProperty('compileAndRunTestsWithJava11')) {
   project.javaPreCommitPortabilityApi.dependsOn ':sdks:java:testing:test-utils:verifyJavaVersion'
 } else {
   allprojects {

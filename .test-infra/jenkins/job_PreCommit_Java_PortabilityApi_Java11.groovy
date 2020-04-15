@@ -44,8 +44,7 @@ builder.build {
             tasks 'javaPreCommitPortabilityApi'
             switches '-Pdockerfile=Dockerfile-java11'
             switches '-PdisableSpotlessCheck=true'
-            switches '-PrunWithJava11'
-            switches "-Pjava8Home=${properties.JAVA_8_HOME}"
+            switches '-compileAndRunTestsWithJava11'
             switches "-Pjava11Home=${properties.JAVA_11_HOME}"
             properties.setGradleSwitches(delegate, 3 * Runtime.runtime.availableProcessors())
         }

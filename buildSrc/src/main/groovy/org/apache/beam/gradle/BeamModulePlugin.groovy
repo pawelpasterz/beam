@@ -21,6 +21,8 @@ package org.apache.beam.gradle
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
+import org.gradle.api.JavaVersion
+
 import java.util.concurrent.atomic.AtomicInteger
 import org.gradle.api.GradleException
 import org.gradle.api.Plugin
@@ -696,6 +698,21 @@ class BeamModulePlugin implements Plugin<Project> {
           '-Werror'
         ]
         + (defaultLintSuppressions + configuration.disableLintWarnings).collect { "-Xlint:-${it}" })
+      }
+
+      if (project.hasProperty("compileAndRunTestsWithJava11")) {
+        def java11Home = project.findProperty("java11Home")
+        project.tasks.compileTestJava {
+          options.fork = true
+          options.forkOptions.javaHome = java11Home as File
+          sourceCompatibility = JavaVersion.VERSION_1_8
+          targetCompatibility = JavaVersion.VERSION_11
+          options.compilerArgs -= ['-Werror']
+        }
+        project.tasks.withType(Test) {
+          useJUnit()
+          executable = "${java11Home}/bin/java"
+        }
       }
 
       // Configure the default test tasks set of tests executed

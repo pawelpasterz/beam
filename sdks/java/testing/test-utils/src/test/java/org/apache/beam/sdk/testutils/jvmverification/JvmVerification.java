@@ -74,6 +74,11 @@ public class JvmVerification {
     assertEquals(v1_8, getByteCodeVersion(JvmVerification.class));
   }
 
+  @Test
+  public void verifyTestCodeIsCompiledWithJava11() throws IOException {
+    assertEquals(v11, getByteCodeVersion(JvmVerification.class));
+  }
+
   // jvm
   @Test
   public void verifyRunningJVMVersionIs11() {
