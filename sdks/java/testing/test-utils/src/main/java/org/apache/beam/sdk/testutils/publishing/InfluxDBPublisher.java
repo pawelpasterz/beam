@@ -19,6 +19,7 @@ package org.apache.beam.sdk.testutils.publishing;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
+import static org.apache.beam.repackaged.core.org.apache.commons.lang3.StringUtils.isBlank;
 import static org.apache.beam.repackaged.core.org.apache.commons.lang3.StringUtils.isNoneBlank;
 
 import java.io.IOException;
@@ -28,6 +29,7 @@ import org.apache.beam.sdk.testutils.NamedTestResult;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
+import org.apache.http.client.entity.GzipCompressingEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
@@ -70,8 +72,7 @@ public final class InfluxDBPublisher {
       throws Exception {
 
     final HttpClientBuilder builder = provideHttpBuilder(settings);
-    final HttpPost postRequest =
-        new HttpPost(settings.host + "/write?db=" + settings.database + "&rp=forever&precision=s");
+    final HttpPost postRequest = providePOSTRequest(settings);
     final StringBuilder metricBuilder = new StringBuilder();
     results.forEach(
         map ->
@@ -97,7 +98,8 @@ public final class InfluxDBPublisher {
                 .append(map.get("timestamp"))
                 .append('\n'));
 
-    postRequest.setEntity(new ByteArrayEntity(metricBuilder.toString().getBytes(UTF_8)));
+    postRequest.setEntity(
+        new GzipCompressingEntity(new ByteArrayEntity(metricBuilder.toString().getBytes(UTF_8))));
 
     executeWithVerification(postRequest, builder);
   }
@@ -106,8 +108,7 @@ public final class InfluxDBPublisher {
       final Collection<NamedTestResult> results, final InfluxDBSettings settings) throws Exception {
 
     final HttpClientBuilder builder = provideHttpBuilder(settings);
-    final HttpPost postRequest =
-        new HttpPost(settings.host + "/write?db=" + settings.database + "&rp&precision=s");
+    final HttpPost postRequest = providePOSTRequest(settings);
     final StringBuilder metricBuilder = new StringBuilder();
     results.stream()
         .map(NamedTestResult::toMap)
@@ -145,6 +146,13 @@ public final class InfluxDBPublisher {
     }
 
     return builder;
+  }
+
+  private static HttpPost providePOSTRequest(final InfluxDBSettings settings) {
+    final String retentionPolicy =
+        "rp" + (isBlank(settings.retentionPolicy) ? "" : "=" + settings.retentionPolicy);
+    return new HttpPost(
+        settings.host + "/write?db=" + settings.database + "&" + retentionPolicy + "&precision=s");
   }
 
   private static void executeWithVerification(

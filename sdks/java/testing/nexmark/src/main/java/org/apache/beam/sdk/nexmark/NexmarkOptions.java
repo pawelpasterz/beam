@@ -495,4 +495,10 @@ public interface NexmarkOptions
   String getBaseInfluxMeasurement();
 
   void setBaseInfluxMeasurement(String influxDBMeasurement);
+
+  @Description("Name of retention policy for Influx data.")
+  @Nullable
+  String getInfluxRetentionPolicy();
+
+  void setInfluxRetentionPolicy(String influxRetentionPolicy);
 }

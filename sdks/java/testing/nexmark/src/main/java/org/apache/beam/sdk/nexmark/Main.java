@@ -225,6 +225,7 @@ public class Main {
         .withHost(options.getInfluxHost())
         .withDatabase(options.getInfluxDatabase())
         .withMeasurement(options.getInfluxMeasurement())
+        .withRetentionPolicy(options.getInfluxRetentionPolicy())
         .get();
   }
 
