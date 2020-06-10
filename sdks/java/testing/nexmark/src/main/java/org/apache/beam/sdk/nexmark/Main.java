@@ -138,7 +138,7 @@ public class Main {
         NexmarkPerf perf = result.perf;
         if (perf == null) {
           continue;
-        } else if (perf.errors == null || perf.errors.isEmpty()) {
+        } else if (perf.errors == null || perf.errors.size() > 0) {
           successful = false;
         }
         appendPerf(options.getPerfFilename(), configuration, perf);
