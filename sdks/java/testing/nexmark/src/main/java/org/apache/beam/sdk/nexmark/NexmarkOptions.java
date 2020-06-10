@@ -25,10 +25,16 @@ import org.apache.beam.sdk.options.Default;
 import org.apache.beam.sdk.options.Description;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.StreamingOptions;
+import org.apache.beam.sdk.testing.InfluxDBOptions;
 
 /** Command line flags. */
 public interface NexmarkOptions
-    extends ApplicationNameOptions, GcpOptions, PipelineOptions, PubsubOptions, StreamingOptions {
+    extends ApplicationNameOptions,
+        GcpOptions,
+        PipelineOptions,
+        PubsubOptions,
+        StreamingOptions,
+        InfluxDBOptions {
   @Description("Which suite to run. Default is to use command line arguments for one job.")
   @Default.Enum("DEFAULT")
   NexmarkSuite getSuite();
