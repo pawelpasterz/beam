@@ -224,7 +224,7 @@ public class Main {
     return InfluxDBSettings.builder()
         .withHost(options.getInfluxHost())
         .withDatabase(options.getInfluxDatabase())
-        .withMeasurement(options.getInfluxMeasurement())
+        .withMeasurement(options.getBaseInfluxMeasurement())
         .withRetentionPolicy(options.getInfluxRetentionPolicy())
         .get();
   }
