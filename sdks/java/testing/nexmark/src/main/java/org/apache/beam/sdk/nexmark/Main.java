@@ -19,6 +19,7 @@ package org.apache.beam.sdk.nexmark;
 
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
+import static org.apache.beam.sdk.nexmark.NexmarkUtils.processingMode;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -147,7 +148,6 @@ public class Main {
         saveSummary(null, configurations, actual, baseline, start, options);
       }
 
-      final int timestamp = (int) start.getMillis() / 1000;
       final ImmutableMap<String, String> schema =
           ImmutableMap.<String, String>builder()
               .put("timestamp", "timestamp")
@@ -165,6 +165,7 @@ public class Main {
       }
 
       if (options.getExportSummaryToInfluxDB()) {
+        final long timestamp = start.getMillis() / 1000; // seconds
         savePerfsToInfluxDB(options, schema, actual, timestamp);
       }
 
@@ -203,7 +204,7 @@ public class Main {
       final NexmarkOptions options,
       final Map<String, String> schema,
       final Map<NexmarkConfiguration, NexmarkPerf> results,
-      final int timestamp) {
+      final long timestamp) {
     final InfluxDBSettings settings = getInfluxSettings(options);
     final String runner = options.getRunner().getSimpleName();
     final List<Map<String, Object>> schemaResults =
@@ -234,13 +235,15 @@ public class Main {
     final String queryName =
         NexmarkUtils.fullQueryName(
             options.getQueryLanguage(), entry.getKey().query.getNumberOrName());
-    return String.format("%s_%s", options.getBaseInfluxMeasurement(), queryName);
+    return String.format(
+        "%s_%s_%s",
+        options.getBaseInfluxMeasurement(), queryName, processingMode(options.isStreaming()));
   }
 
   private static Map<String, Object> getResultsFromSchema(
       final NexmarkPerf results,
       final Map<String, String> schema,
-      final int timestamp,
+      final long timestamp,
       final String runner,
       final String measurement) {
     final Map<String, Object> schemaResults =
