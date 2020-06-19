@@ -19,12 +19,14 @@ package org.apache.beam.sdk.testutils.publishing;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.joining;
 import static org.apache.beam.repackaged.core.org.apache.commons.lang3.StringUtils.isBlank;
 import static org.apache.beam.repackaged.core.org.apache.commons.lang3.StringUtils.isNoneBlank;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.apache.beam.sdk.testutils.NamedTestResult;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
@@ -40,6 +42,9 @@ import org.slf4j.LoggerFactory;
 
 public final class InfluxDBPublisher {
   private static final Logger LOG = LoggerFactory.getLogger(InfluxDBPublisher.class);
+  private static final String COMMA_SEPARATOR = ",";
+  private static final String WHITE_SPACE = " ";
+  private static final String NEXT_POINT_SEPARATOR = "\n";
 
   private InfluxDBPublisher() {}
 
@@ -77,26 +82,10 @@ public final class InfluxDBPublisher {
     results.forEach(
         map ->
             metricBuilder
-                .append(map.get("measurement"))
-                .append(",")
-                .append("runner")
-                .append("=")
-                .append(map.get("runner"))
-                .append(" ")
-                .append("runtimeSec")
-                .append("=")
-                .append(map.get("runtimeSec"))
-                .append(",")
-                .append("eventsPerSec")
-                .append("=")
-                .append(map.get("eventsPerSec"))
-                .append(",")
-                .append("numResults")
-                .append("=")
-                .append(map.get("numResults"))
-                .append(" ")
-                .append(map.get("timestamp"))
-                .append('\n'));
+                .append(makeMeasurement(map.get("measurement")))
+                .append(makeTags(map, "runner"))
+                .append(makeValues(map, "runtimeSec", "eventsPerSec", "numResults"))
+                .append(makeTimestamp(map.get("timestamp"))));
 
     postRequest.setEntity(
         new GzipCompressingEntity(new ByteArrayEntity(metricBuilder.toString().getBytes(UTF_8))));
@@ -115,22 +104,13 @@ public final class InfluxDBPublisher {
         .forEach(
             map ->
                 metricBuilder
-                    .append(settings.measurement)
-                    .append(",")
-                    .append("test_id")
-                    .append("=")
-                    .append(map.get("test_id"))
-                    .append(",")
-                    .append("metric")
-                    .append("=")
-                    .append(map.get("metric"))
-                    .append(" ")
-                    .append("value")
-                    .append("=")
-                    .append(map.get("value"))
-                    .append('\n'));
+                    .append(makeMeasurement(settings.measurement))
+                    .append(makeTags(map, "test_id", "metric"))
+                    .append(makeValues(map, "value"))
+                    .append(noTimestamp()));
 
-    postRequest.setEntity(new ByteArrayEntity(metricBuilder.toString().getBytes(UTF_8)));
+    postRequest.setEntity(
+        new GzipCompressingEntity(new ByteArrayEntity(metricBuilder.toString().getBytes(UTF_8))));
 
     executeWithVerification(postRequest, builder);
   }
@@ -146,6 +126,31 @@ public final class InfluxDBPublisher {
     }
 
     return builder;
+  }
+
+  private static String makeMeasurement(final Object measurement) {
+    return measurement + COMMA_SEPARATOR;
+  }
+
+  private static String makeTags(final Map<String, Object> map, final String... keys) {
+    return makeKeyValueString(map, keys);
+  }
+
+  private static String makeValues(final Map<String, Object> map, final String... keys) {
+    return makeKeyValueString(map, keys);
+  }
+
+  private static String makeKeyValueString(final Map<String, Object> map, final String... keys) {
+    return Stream.of(keys).map(tag -> tag + "=" + map.get(tag)).collect(joining(COMMA_SEPARATOR))
+        + WHITE_SPACE;
+  }
+
+  private static String makeTimestamp(final Object timestamp) {
+    return timestamp + NEXT_POINT_SEPARATOR;
+  }
+
+  private static String noTimestamp() {
+    return makeTimestamp("");
   }
 
   private static HttpPost providePOSTRequest(final InfluxDBSettings settings) {
