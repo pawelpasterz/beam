@@ -250,9 +250,12 @@ public class Main {
         results.toMap().entrySet().stream()
             .filter(element -> schema.containsKey(element.getKey()))
             .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
+    final int runtimeMs =
+        (int) ((double) schemaResults.get("runtimeSec") * 1000); // change sec to ms
     schemaResults.put("timestamp", timestamp);
     schemaResults.put("runner", runner);
     schemaResults.put("measurement", measurement);
+    schemaResults.put("runtimeMs", runtimeMs);
 
     return schemaResults;
   }

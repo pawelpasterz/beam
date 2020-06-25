@@ -19,14 +19,11 @@ package org.apache.beam.sdk.testutils.publishing;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.joining;
-import static org.apache.beam.repackaged.core.org.apache.commons.lang3.StringUtils.isBlank;
-import static org.apache.beam.repackaged.core.org.apache.commons.lang3.StringUtils.isNoneBlank;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
-import java.util.stream.Stream;
+import org.apache.beam.repackaged.core.org.apache.commons.lang3.StringUtils;
 import org.apache.beam.sdk.testutils.NamedTestResult;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
@@ -42,9 +39,6 @@ import org.slf4j.LoggerFactory;
 
 public final class InfluxDBPublisher {
   private static final Logger LOG = LoggerFactory.getLogger(InfluxDBPublisher.class);
-  private static final String COMMA_SEPARATOR = ",";
-  private static final String WHITE_SPACE = " ";
-  private static final String NEXT_POINT_SEPARATOR = "\n";
 
   private InfluxDBPublisher() {}
 
@@ -61,7 +55,7 @@ public final class InfluxDBPublisher {
   private static void publishWithCheck(
       final InfluxDBSettings settings, final PublishFunction publishFunction) {
     requireNonNull(settings, "InfluxDB settings must not be null");
-    if (isNoneBlank(settings.measurement, settings.database)) {
+    if (StringUtils.isNoneBlank(settings.measurement, settings.database)) {
       try {
         publishFunction.publish();
       } catch (Exception exception) {
@@ -82,15 +76,25 @@ public final class InfluxDBPublisher {
     results.forEach(
         map ->
             metricBuilder
-                .append(makeMeasurement(map.get("measurement")))
-                .append(makeTags(map, "runner"))
-                .append(makeValues(map, "runtimeSec", "eventsPerSec", "numResults"))
-                .append(makeTimestamp(map.get("timestamp"))));
+                .append(map.get("measurement"))
+                .append(",")
+                .append(getKV(map, "runner"))
+                .append(" ")
+                .append(getKV(map, "runtimeMs"))
+                .append(",")
+                .append(getKV(map, "numResults"))
+                .append(" ")
+                .append(map.get("timestamp"))
+                .append('\n'));
 
     postRequest.setEntity(
         new GzipCompressingEntity(new ByteArrayEntity(metricBuilder.toString().getBytes(UTF_8))));
 
     executeWithVerification(postRequest, builder);
+  }
+
+  private static String getKV(final Map<String, Object> map, final String key) {
+    return key + "=" + map.get(key);
   }
 
   private static void publishCommon(
@@ -104,13 +108,16 @@ public final class InfluxDBPublisher {
         .forEach(
             map ->
                 metricBuilder
-                    .append(makeMeasurement(settings.measurement))
-                    .append(makeTags(map, "test_id", "metric"))
-                    .append(makeValues(map, "value"))
-                    .append(noTimestamp()));
+                    .append(settings.measurement)
+                    .append(",")
+                    .append(getKV(map, "test_id"))
+                    .append(",")
+                    .append(getKV(map, "metric"))
+                    .append(" ")
+                    .append(getKV(map, "value"))
+                    .append('\n'));
 
-    postRequest.setEntity(
-        new GzipCompressingEntity(new ByteArrayEntity(metricBuilder.toString().getBytes(UTF_8))));
+    postRequest.setEntity(new ByteArrayEntity(metricBuilder.toString().getBytes(UTF_8)));
 
     executeWithVerification(postRequest, builder);
   }
@@ -118,7 +125,7 @@ public final class InfluxDBPublisher {
   private static HttpClientBuilder provideHttpBuilder(final InfluxDBSettings settings) {
     final HttpClientBuilder builder = HttpClientBuilder.create();
 
-    if (isNoneBlank(settings.userName, settings.userPassword)) {
+    if (StringUtils.isNoneBlank(settings.userName, settings.userPassword)) {
       final CredentialsProvider provider = new BasicCredentialsProvider();
       provider.setCredentials(
           AuthScope.ANY, new UsernamePasswordCredentials(settings.userName, settings.userPassword));
@@ -128,34 +135,10 @@ public final class InfluxDBPublisher {
     return builder;
   }
 
-  private static String makeMeasurement(final Object measurement) {
-    return measurement + COMMA_SEPARATOR;
-  }
-
-  private static String makeTags(final Map<String, Object> map, final String... keys) {
-    return makeKeyValueString(map, keys);
-  }
-
-  private static String makeValues(final Map<String, Object> map, final String... keys) {
-    return makeKeyValueString(map, keys);
-  }
-
-  private static String makeKeyValueString(final Map<String, Object> map, final String... keys) {
-    return Stream.of(keys).map(tag -> tag + "=" + map.get(tag)).collect(joining(COMMA_SEPARATOR))
-        + WHITE_SPACE;
-  }
-
-  private static String makeTimestamp(final Object timestamp) {
-    return timestamp + NEXT_POINT_SEPARATOR;
-  }
-
-  private static String noTimestamp() {
-    return makeTimestamp("");
-  }
-
   private static HttpPost providePOSTRequest(final InfluxDBSettings settings) {
     final String retentionPolicy =
-        "rp" + (isBlank(settings.retentionPolicy) ? "" : "=" + settings.retentionPolicy);
+        "rp"
+            + (StringUtils.isBlank(settings.retentionPolicy) ? "" : "=" + settings.retentionPolicy);
     return new HttpPost(
         settings.host + "/write?db=" + settings.database + "&" + retentionPolicy + "&precision=s");
   }
