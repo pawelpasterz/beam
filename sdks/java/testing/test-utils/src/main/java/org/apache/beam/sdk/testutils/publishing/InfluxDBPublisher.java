@@ -19,11 +19,12 @@ package org.apache.beam.sdk.testutils.publishing;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
+import static org.apache.commons.lang3.StringUtils.isBlank;
+import static org.apache.commons.lang3.StringUtils.isNoneBlank;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
-import org.apache.beam.repackaged.core.org.apache.commons.lang3.StringUtils;
 import org.apache.beam.sdk.testutils.NamedTestResult;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
@@ -55,7 +56,7 @@ public final class InfluxDBPublisher {
   private static void publishWithCheck(
       final InfluxDBSettings settings, final PublishFunction publishFunction) {
     requireNonNull(settings, "InfluxDB settings must not be null");
-    if (StringUtils.isNoneBlank(settings.measurement, settings.database)) {
+    if (isNoneBlank(settings.measurement, settings.database)) {
       try {
         publishFunction.publish();
       } catch (Exception exception) {
@@ -125,7 +126,7 @@ public final class InfluxDBPublisher {
   private static HttpClientBuilder provideHttpBuilder(final InfluxDBSettings settings) {
     final HttpClientBuilder builder = HttpClientBuilder.create();
 
-    if (StringUtils.isNoneBlank(settings.userName, settings.userPassword)) {
+    if (isNoneBlank(settings.userName, settings.userPassword)) {
       final CredentialsProvider provider = new BasicCredentialsProvider();
       provider.setCredentials(
           AuthScope.ANY, new UsernamePasswordCredentials(settings.userName, settings.userPassword));
@@ -137,8 +138,7 @@ public final class InfluxDBPublisher {
 
   private static HttpPost providePOSTRequest(final InfluxDBSettings settings) {
     final String retentionPolicy =
-        "rp"
-            + (StringUtils.isBlank(settings.retentionPolicy) ? "" : "=" + settings.retentionPolicy);
+        "rp" + (isBlank(settings.retentionPolicy) ? "" : "=" + settings.retentionPolicy);
     return new HttpPost(
         settings.host + "/write?db=" + settings.database + "&" + retentionPolicy + "&precision=s");
   }
