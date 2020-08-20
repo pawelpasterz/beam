@@ -167,6 +167,20 @@ public class Event implements KnownSize, Serializable {
     }
   }
 
+  public String toCSVRow() {
+    return toCSVRow(",");
+  }
+
+  public String toCSVRow(String separator) {
+    if (newPerson != null) {
+      return newPerson.toCSVRow(separator);
+    } else if (newAuction != null) {
+      return newAuction.toCSVRow(separator);
+    } else {
+      return bid.toCSVRow(separator);
+    }
+  }
+
   @Override
   public long sizeInBytes() {
     if (newPerson != null) {

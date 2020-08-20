@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
+import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.io.AvroIO;
 import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO;
@@ -86,6 +87,7 @@ import org.apache.beam.sdk.nexmark.queries.sql.SqlQuery7;
 import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testutils.metrics.MetricsReader;
 import org.apache.beam.sdk.transforms.DoFn;
+import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.util.CoderUtils;
 import org.apache.beam.sdk.values.KV;
@@ -94,6 +96,9 @@ import org.apache.beam.sdk.values.PCollectionTuple;
 import org.apache.beam.sdk.values.TimestampedValue;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.TupleTagList;
+import org.apache.beam.sdk.values.TypeDescriptor;
+import org.apache.beam.sdk.values.TypeDescriptors;
+import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Charsets;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Splitter;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Strings;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableList;
@@ -698,18 +703,35 @@ public class NexmarkLauncher<OptionT extends NexmarkOptions> {
         }
       };
 
+  static final DoFn<Event, byte[]> EVENT_TO_CSV =
+      new DoFn<Event, byte[]>() {
+        @ProcessElement
+        public void processElement(ProcessContext c) throws IOException {
+          byte[] encodedCSVRow =
+              CoderUtils.encodeToByteArray(StringUtf8Coder.of(), c.element().toCSVRow());
+          c.output(encodedCSVRow);
+        }
+      };
+
   /** Send {@code events} to Kafka. */
-  private void sinkEventsToKafka(PCollection<Event> events) {
+  private void sinkEventsToKafka(PCollection<byte[]> events) {
     checkArgument((options.getBootstrapServers() != null), "Missing --bootstrapServers");
     NexmarkUtils.console("Writing events to Kafka Topic %s", options.getKafkaTopic());
 
-    PCollection<byte[]> eventToBytes = events.apply("Event to bytes", ParDo.of(EVENT_TO_BYTEARRAY));
-    eventToBytes.apply(
-        KafkaIO.<Void, byte[]>write()
-            .withBootstrapServers(options.getBootstrapServers())
-            .withTopic(options.getKafkaTopic())
-            .withValueSerializer(ByteArraySerializer.class)
-            .values());
+    // Cross-language KafkaIO fails for empty key, see BEAM-10529. A non-empty key must be used
+    // instead.
+    events
+        .apply(
+            MapElements.into(
+                    TypeDescriptors.kvs(
+                        TypeDescriptor.of(byte[].class), TypeDescriptor.of(byte[].class)))
+                .via(event -> KV.of("x".getBytes(Charsets.UTF_8), event)))
+        .apply(
+            KafkaIO.<byte[], byte[]>write()
+                .withBootstrapServers(options.getBootstrapServers())
+                .withTopic(options.getKafkaTopic())
+                .withKeySerializer(ByteArraySerializer.class)
+                .withValueSerializer(ByteArraySerializer.class));
   }
 
   static final DoFn<KV<Long, byte[]>, Event> BYTEARRAY_TO_EVENT =
@@ -754,7 +776,7 @@ public class NexmarkLauncher<OptionT extends NexmarkOptions> {
   }
 
   /** Send {@code events} to Pubsub. */
-  private void sinkEventsToPubsub(PCollection<Event> events) {
+  private void sinkEventsToPubsub(PCollection<byte[]> events) {
     checkState(pubsubTopic != null, "Pubsub topic needs to be set up before initializing sink");
     NexmarkUtils.console("Writing events to Pubsub %s", pubsubTopic);
 
@@ -935,9 +957,10 @@ public class NexmarkLauncher<OptionT extends NexmarkOptions> {
           case PUBLISH_ONLY:
             {
               // Send synthesized events to Kafka or Pubsub in this job.
-              PCollection<Event> events =
+              PCollection<byte[]> events =
                   sourceEventsFromSynthetic(p)
-                      .apply(queryName + ".Snoop", NexmarkUtils.snoop(queryName));
+                      .apply(queryName + ".Snoop", NexmarkUtils.snoop(queryName))
+                      .apply("Event to csv", ParDo.of(EVENT_TO_CSV));
               if (configuration.sourceType == NexmarkUtils.SourceType.KAFKA) {
                 sinkEventsToKafka(events);
               } else { // pubsub
@@ -954,9 +977,10 @@ public class NexmarkLauncher<OptionT extends NexmarkOptions> {
                   Pipeline sp = Pipeline.create(publishOnlyOptions);
                   NexmarkUtils.setupPipeline(configuration.coderStrategy, sp);
                   publisherMonitor = new Monitor<>(queryName, "publisher");
-                  PCollection<Event> events =
+                  PCollection<byte[]> events =
                       sourceEventsFromSynthetic(sp)
-                          .apply(queryName + ".Monitor", publisherMonitor.getTransform());
+                          .apply(queryName + ".Monitor", publisherMonitor.getTransform())
+                          .apply("Event to bytes", ParDo.of(EVENT_TO_BYTEARRAY));
                   if (configuration.sourceType == NexmarkUtils.SourceType.KAFKA) {
                     sinkEventsToKafka(events);
                   } else { // pubsub
@@ -1374,11 +1398,10 @@ public class NexmarkLauncher<OptionT extends NexmarkOptions> {
     }
   }
 
-  private static class EventPubsubMessageDoFn extends DoFn<Event, PubsubMessage> {
+  private static class EventPubsubMessageDoFn extends DoFn<byte[], PubsubMessage> {
     @ProcessElement
     public void processElement(ProcessContext c) throws IOException {
-      byte[] payload = CoderUtils.encodeToByteArray(Event.CODER, c.element());
-      c.output(new PubsubMessage(payload, Collections.emptyMap()));
+      c.output(new PubsubMessage(c.element(), Collections.emptyMap()));
     }
   }
 }
