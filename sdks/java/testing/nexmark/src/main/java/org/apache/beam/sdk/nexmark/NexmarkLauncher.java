@@ -31,6 +31,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
@@ -725,7 +726,7 @@ public class NexmarkLauncher<OptionT extends NexmarkOptions> {
             MapElements.into(
                     TypeDescriptors.kvs(
                         TypeDescriptor.of(byte[].class), TypeDescriptor.of(byte[].class)))
-                .via(event -> KV.of("x".getBytes(Charsets.UTF_8), event)))
+                .via(event -> KV.of(UUID.randomUUID().toString().getBytes(Charsets.UTF_8), event)))
         .apply(
             KafkaIO.<byte[], byte[]>write()
                 .withBootstrapServers(options.getBootstrapServers())
