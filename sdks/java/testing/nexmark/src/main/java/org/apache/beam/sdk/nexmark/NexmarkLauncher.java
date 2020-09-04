@@ -25,6 +25,7 @@ import com.google.api.services.bigquery.model.TableFieldSchema;
 import com.google.api.services.bigquery.model.TableRow;
 import com.google.api.services.bigquery.model.TableSchema;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -721,19 +722,31 @@ public class NexmarkLauncher<OptionT extends NexmarkOptions> {
 
     // Cross-language KafkaIO fails for empty key, see BEAM-10529. A non-empty key must be used
     // instead.
+//    events
+//        .apply(
+//            MapElements.into(
+//                    TypeDescriptors.kvs(
+//                        TypeDescriptor.of(byte[].class), TypeDescriptor.of(byte[].class)))
+//                .via(event -> KV.of(UUID.randomUUID().toString().getBytes(Charsets.UTF_8), event)))
+//        .apply(
+//            KafkaIO.<byte[], byte[]>write()
+//                .withBootstrapServers(options.getBootstrapServers())
+//                .withTopic(options.getKafkaTopic())
+//                .withKeySerializer(ByteArraySerializer.class)
+//                .withValueSerializer(ByteArraySerializer.class));
+
+    String filename = textFilename(666777);
+    NexmarkUtils.console("Writing results to text files at %s", filename);
     events
-        .apply(
-            MapElements.into(
-                    TypeDescriptors.kvs(
-                        TypeDescriptor.of(byte[].class), TypeDescriptor.of(byte[].class)))
-                .via(event -> KV.of(UUID.randomUUID().toString().getBytes(Charsets.UTF_8), event)))
-        .apply(
-            KafkaIO.<byte[], byte[]>write()
-                .withBootstrapServers(options.getBootstrapServers())
-                .withTopic(options.getKafkaTopic())
-                .withKeySerializer(ByteArraySerializer.class)
-                .withValueSerializer(ByteArraySerializer.class));
+            .apply(ParDo.of(BLA))
+            .apply(queryName + ".WriteTextResults", TextIO.write().withoutSharding().to(filename));
   }
+  static final DoFn<byte[], String> BLA = new DoFn<byte[], String>() {
+      @ProcessElement
+      public void processElement(ProcessContext c) {
+          c.output(new String(c.element(), Charset.defaultCharset()));
+      }
+  };
 
   static final DoFn<KV<Long, byte[]>, Event> BYTEARRAY_TO_EVENT =
       new DoFn<KV<Long, byte[]>, Event>() {
